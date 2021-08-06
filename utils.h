@@ -103,7 +103,7 @@ namespace utils {
             throw "The given graph is not a DAG";
         }
         auto new_A = A.clone();
-        auto sinks_torch = torch::where(new_A.sum({0})==0)[0].contiguous();
+        auto sinks_torch = torch::where(new_A.sum({0})==0)[0].contiguous().toType(torch::kInt);
         std::vector<int> sinks{sinks_torch.data_ptr<int>(), sinks_torch.data_ptr<int>()+sinks_torch.numel()};
         std::vector<int> ordering;
 
@@ -180,7 +180,7 @@ namespace utils {
             int i = 0;
             while (!found and i < P.size(0)) {
                 // Check condition 1
-                auto sink = (ch(i, P).size() == 0);
+                auto sink = ch(i, P).empty();
                 // Check condition 2
                 auto n_i = neighbors(i, P);
                 auto adj_i = adj(i, P);
@@ -200,12 +200,12 @@ namespace utils {
                 // Orient all incident undirected edges and remove i
                 if (found) {
                     auto real_i = indexes[i];
-                    std::vector<int> real_neighbors(n_i.size());
-                    real_neighbors.reserve(n_i.size());
+                    std::vector<int> real_neighbors;
                     for (auto j: n_i) real_neighbors.emplace_back(indexes[j]);
-                    for (auto j: real_neighbors) G.index_put_({j, real_i}, 1);
+                    for (auto j: real_neighbors)
+                        G.index_put_({j, real_i}, 1);
                     std::vector<int> all_but_i;
-                    for (int j=0;j<P.size(0)-1;++j) if (i!=j) all_but_i.emplace_back(j);
+                    for (int j=0;j<P.size(0);++j) if (i!=j) all_but_i.emplace_back(j);
                     auto all_but_i_torch = torch::tensor(all_but_i);
                     P = P.index({all_but_i_torch, "..."}).index({"...", all_but_i_torch});
                     indexes.erase(std::find(indexes.begin(), indexes.end(), real_i));
@@ -225,8 +225,8 @@ namespace utils {
         auto order = topological_ordering(G);
         auto ordered = (G!=0).toType(torch::kLong) * -1;
         int i = 1;
-        while (torch::any(ordered).item().toBool()) {
-            auto ul = torch::hstack(torch::where(ordered==-1)).contiguous();
+        while (torch::any(ordered==-1).item().toBool()) {
+            auto ul = torch::hstack(torch::where(ordered==-1)).contiguous().toType(torch::kInt);
             std::set<int> with_unlablled{ul.data_ptr<int>(), ul.data_ptr<int>()+ul.numel()};
             int y = 0;
             for (auto p=order.rbegin(); p!=order.rend(); ++p) {
@@ -235,7 +235,7 @@ namespace utils {
                     break;
                 }
             }
-            auto ul_y = torch::where(ordered.index({"...", y})==-1)[0].contiguous();
+            auto ul_y = torch::where(ordered.index({"...", y})==-1)[0].contiguous().toType(torch::kInt);
             std::set<int> unlabelled_parents_y{ul_y.data_ptr<int>(), ul_y.data_ptr<int>()+ul.numel()};
             int x = 0;
             for (auto p: order) {
@@ -311,6 +311,11 @@ namespace utils {
             }
         }
         return cpdag;
+    }
+
+    auto pdag_to_cpdag(const torch::Tensor& pdag) {
+        auto dag = pdag_to_dag(pdag);
+        return dag_to_cpdag(dag);
     }
 }
 

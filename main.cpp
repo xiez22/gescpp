@@ -91,7 +91,8 @@ auto score_valid_insert_operators(
             auto old_score = cache.local_score(y, aux);
             aux.insert(x);
             auto new_score = cache.local_score(y, aux);
-            if (debug) std::cout<<"new:"<<new_score<<" old:"<<old_score<<std::endl;
+            if (isinf(old_score) or isinf(new_score)) continue;
+            if (debug) std::cout<<new_score-old_score<<std::endl;
 
             valid_count++;
             if (new_score-old_score > best_score) {
@@ -134,7 +135,7 @@ auto forward_step(torch::Tensor& A,
         return std::make_tuple(0.0, A);
     }
     else {
-        if (debug) std::cout << "Best score: " << best_score << std::endl;
+        if (debug) std::cout << "----------------------> Best score: " << best_score << std::endl;
         return std::make_tuple(best_score, best_A);
     }
 }
@@ -166,6 +167,7 @@ auto fit(int n,
                 while(true) {
                     auto [score_change, new_A] = forward_step(A, score_class, debug, new_fixedgaps);
                     if (score_change > 0.0) {
+                        //A = utils::pdag_to_cpdag(new_A);
                         A = new_A.clone();
                         total_score += score_change;
                     }
@@ -191,10 +193,20 @@ int main() {
     // auto A0 = at::zeros({10, 10});
     // fit(10, A0);
     torch::manual_seed(1234);
-    auto data = torch::rand({100, 10});
-    auto A0 = torch::zeros({10, 10});
-    auto score_class = GaussObsL0Pen(data);
-    fit(10, A0, score_class, {"forward", "backward"}, false, 1);
+    auto data = torch::randn({1000, 50});
+    data[500][0] = 10.0;
+    data[500][9] = 20.0;
+    auto A0 = torch::zeros({50, 50});
+
+    std::cout << "Start ... " << std::endl;
+    for (int i=0;i<1;++i) {
+        std::cout << i << std::endl;
+        auto score_class = GaussObsL0Pen(data);
+        auto [A, total_score] = fit(50, A0, score_class, {"forward"}, false, 0);
+    }
+
+    std::cout << "Finished." << std::endl;
+    //std::cout << A << std::endl << total_score << std::endl;
 
     return 0;
 }

@@ -42,7 +42,6 @@ public:
                 value = _cache[key] = _compute_local_score(x, pa);
             }
         }
-        std::cout << value << std::endl;
         return value;
     }
 
