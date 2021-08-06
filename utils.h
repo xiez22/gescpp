@@ -8,6 +8,8 @@
 #include <algorithm>
 #include <vector>
 #include <string>
+#include <unordered_map>
+#include <functional>
 #include "torch/torch.h"
 using namespace torch::indexing;
 
@@ -33,6 +35,14 @@ namespace utils {
                 result.insert(j);
             }
         }
+        return result;
+    }
+
+    auto na(int y, int x, const torch::Tensor& A) {
+        auto s1 = neighbors(y, A);
+        auto s2 = adj(x, A);
+        std::set<int> result;
+        std::set_intersection(s1.begin(), s1.end(), s2.begin(), s2.end(), std::inserter(result, result.end()));
         return result;
     }
 
@@ -115,6 +125,48 @@ namespace utils {
         else {
             return ordering;
         }
+    }
+
+    auto is_dag(const torch::Tensor& A) {
+        try {
+            topological_ordering(A);
+            return true;
+        }
+        catch (...) {
+            return false;
+        }
+    }
+
+    auto semi_directed_paths(int fro, int to, const torch::Tensor& A) {
+        // Initialize map
+        std::unordered_map<int, std::vector<int>> mdata;
+        int n = A.size(0);
+        for (int i=0;i<n;++i)
+            for (int j=0;j<n;++j)
+                if (A[i][j].item().toInt()!=0)
+                    mdata[i].emplace_back(j);
+
+        // Dfs
+        std::vector<bool> visited(n, false);
+        std::vector<std::vector<int>> paths;
+        std::vector<int> current_path;
+        std::function<void(int)> dfs = [&](int pos) {
+            current_path.emplace_back(pos);
+            visited[pos] = true;
+            if (pos == to) {
+                paths.emplace_back(current_path);
+            }
+            else {
+                for (auto p: mdata[pos]) {
+                    if (visited[p]) continue;
+                    dfs(p);
+                }
+            }
+            current_path.pop_back();
+            visited[pos] = false;
+        };
+        dfs(fro);
+        return paths;
     }
 }
 
