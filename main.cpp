@@ -10,7 +10,7 @@
 using ull = unsigned long long;
 
 auto insert(int x, int y, const std::set<int>& T, const torch::Tensor& A) {
-    auto new_A = A;
+    auto new_A = A.clone();
     std::vector<int> T_vec{T.begin(), T.end()};
     auto T_torch = torch::tensor(T_vec);
     new_A[x][y] = 1;
@@ -83,7 +83,7 @@ auto score_valid_insert_operators(
             }
         }
         if (cond_1 and cond_2) {
-            auto &&new_A = insert(x, y, T, A);
+            auto new_A = insert(x, y, T, A);
             std::set<int> aux;
             auto pa_y = utils::pa(y, A);
             set_union(na_yxT.begin(), na_yxT.end(), pa_y.begin(), pa_y.end(), std::inserter(aux, aux.end()));
@@ -149,18 +149,28 @@ auto fit(int n,
     // Check input A0 size
     assert(A0.sizes().size()==2 and n==A0.sizes()[0]);
 
+    torch::Tensor new_fixedgaps;
+    if (fixedgaps.sizes().size() < 2) {
+        new_fixedgaps = torch::zeros_like(A0);
+    }
+    else new_fixedgaps = fixedgaps;
+
     // GES procedure
-    double total_score = 0, score_change = 1e10;
-    auto A = A0;
+    double total_score = 0;
+    auto A = A0.clone();
+
     while(true) {
         auto last_total_score = total_score;
         for (const auto& phase: phases) {
             if (phase == "forward") {
-                auto &&[score_change, new_A] = forward_step(A, score_class, debug, fixedgaps);
-                if (score_change > 0.0) {
-                    total_score += score_change;
+                while(true) {
+                    auto [score_change, new_A] = forward_step(A, score_class, debug, new_fixedgaps);
+                    if (score_change > 0.0) {
+                        A = new_A.clone();
+                        total_score += score_change;
+                    }
+                    else break;
                 }
-                else break;
             }
             else if (phase == "backward") {
                 break;
@@ -178,8 +188,13 @@ auto fit(int n,
 }
 
 int main() {
-    auto A0 = at::zeros({10, 10});
-    //fit(10, A0);
+    // auto A0 = at::zeros({10, 10});
+    // fit(10, A0);
+    torch::manual_seed(1234);
+    auto data = torch::rand({100, 10});
+    auto A0 = torch::zeros({10, 10});
+    auto score_class = GaussObsL0Pen(data);
+    fit(10, A0, score_class, {"forward", "backward"}, false, 1);
 
     return 0;
 }

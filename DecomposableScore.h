@@ -22,19 +22,28 @@ public:
     explicit DecomposableScore(bool cache=true, int debug=0): cache(cache), debug(debug) {}
 
     double local_score(int x, const std::set<int>& pa) {
+        if (debug) {
+            std::cout << x << "(";
+            for (auto p: pa) std::cout << "," << p;
+            std::cout << ") :";
+        }
+        double value;
         if (!cache) {
-            return _compute_local_score(x, pa);
+            value = _compute_local_score(x, pa);
         }
         else {
             std::vector key = {x};
             key.insert(key.end(), pa.begin(), pa.end());
             if (_cache.contains(key)) {
-                return _cache[key];
+                if (debug) std::cout << "using cached value ";
+                value = _cache[key];
             }
             else {
-                return _cache[key] = _compute_local_score(x, pa);
+                value = _cache[key] = _compute_local_score(x, pa);
             }
         }
+        std::cout << value << std::endl;
+        return value;
     }
 
     [[nodiscard]] virtual double _compute_local_score(int x, const std::set<int>& pa) const {
@@ -45,16 +54,16 @@ public:
 
 class GaussObsL0Pen: public DecomposableScore {
 public:
-    torch::Tensor _data, _centered;
+    torch::Tensor data, _centered;
     int n, p;
     double lmbda;
 
     explicit GaussObsL0Pen(torch::Tensor _data, bool cache=true, int debug=0):
-        _data(std::move(_data)), DecomposableScore(cache, debug) {
-        n = _data.size(0);
+        data(std::move(_data)), DecomposableScore(cache, debug) {
+        n = data.size(0);
         lmbda = 0.5 * log(n);
-        p = _data.size(1);
-        _centered = _data - _data.mean(0);
+        p = data.size(1);
+        _centered = data - data.mean(0);
     }
 
     [[nodiscard]] double _compute_local_score(int x, const std::set<int>& pa) const override {
