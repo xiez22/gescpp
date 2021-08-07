@@ -66,7 +66,8 @@ public:
     }
 
     [[nodiscard]] double _compute_local_score(int x, const std::set<int>& pa) const override {
-        auto sigma = _mle_local(x, pa);
+        torch::Tensor sigma;
+        sigma = _mle_local(x, pa);
         auto likelihood = -0.5 * n * (1.0 + torch::log(sigma));
         auto l0_term = lmbda * double(pa.size() + 1);
         auto score = likelihood.item().toDouble() - l0_term;

@@ -14,27 +14,29 @@
 using namespace torch::indexing;
 
 namespace utils {
-    auto neighbors(int i, const torch::Tensor& A) {
-        std::set<int> result;
-        int n = A.size(0);
+    auto print(std::string s) {
+        std::cout << s << std::endl;
+    }
 
-        for (int j=0;j<n;++j) {
-            if (A[i][j].item().toInt()!=0 and A[j][i].item().toInt()!=0) {
-                result.insert(j);
-            }
-        }
+    auto tensor_to_int_vector(const torch::Tensor& A) {
+        auto new_A = A.toType(torch::kInt).contiguous();
+        std::vector<int> result{new_A.data_ptr<int>(), new_A.data_ptr<int>()+new_A.numel()};
+        return result;
+    }
+
+    auto neighbors(int i, const torch::Tensor& A) {
+        auto re_torch = torch::where(torch::logical_and(
+                A.index({i,"..."})!=0, A.index({"...", i})!=0))[0].toType(torch::kInt).contiguous();
+        std::set<int> result{re_torch.data_ptr<int>(),re_torch.data_ptr<int>()+re_torch.numel()};
+
         return result;
     }
 
     auto adj(int i, const torch::Tensor& A) {
-        std::set<int> result;
-        int n = A.size(0);
+        auto re_torch = torch::where(torch::logical_or(
+                A.index({i,"..."})!=0, A.index({"...", i})!=0))[0].toType(torch::kInt).contiguous();
+        std::set<int> result{re_torch.data_ptr<int>(),re_torch.data_ptr<int>()+re_torch.numel()};
 
-        for (int j=0;j<n;++j) {
-            if (A[i][j].item().toInt()!=0 or A[j][i].item().toInt()!=0) {
-                result.insert(j);
-            }
-        }
         return result;
     }
 
@@ -47,26 +49,16 @@ namespace utils {
     }
 
     auto pa(int i, const torch::Tensor& A) {
-        std::set<int> result;
-        int n = A.size(0);
-
-        for (int j=0;j<n;++j) {
-            if (A[j][i].item().toInt()!=0 and A[i][j].item().toInt()==0) {
-                result.insert(j);
-            }
-        }
+        auto re_torch = torch::where(torch::logical_and(
+                A.index({"...", i})!=0, A.index({i, "..."})==0))[0].toType(torch::kInt).contiguous();
+        std::set<int> result{re_torch.data_ptr<int>(),re_torch.data_ptr<int>()+re_torch.numel()};
         return result;
     }
 
     auto ch(int i, const torch::Tensor& A) {
-        std::set<int> result;
-        int n = A.size(0);
-
-        for (int j=0;j<n;++j) {
-            if (A[i][j].item().toInt()!=0 and A[j][i].item().toInt()==0) {
-                result.insert(j);
-            }
-        }
+        auto re_torch = torch::where(torch::logical_and(
+                A.index({i,"..."})!=0, A.index({"...", i})==0))[0].toType(torch::kInt).contiguous();
+        std::set<int> result{re_torch.data_ptr<int>(),re_torch.data_ptr<int>()+re_torch.numel()};
         return result;
     }
 
@@ -103,7 +95,7 @@ namespace utils {
             throw "The given graph is not a DAG";
         }
         auto new_A = A.clone();
-        auto sinks_torch = torch::where(new_A.sum({0})==0)[0].contiguous().toType(torch::kInt);
+        auto sinks_torch = torch::where(new_A.sum({0})==0)[0].toType(torch::kInt).contiguous();
         std::vector<int> sinks{sinks_torch.data_ptr<int>(), sinks_torch.data_ptr<int>()+sinks_torch.numel()};
         std::vector<int> ordering;
 
@@ -140,11 +132,13 @@ namespace utils {
     auto semi_directed_paths(int fro, int to, const torch::Tensor& A) {
         // Initialize map
         std::unordered_map<int, std::vector<int>> mdata;
-        int n = A.size(0);
-        for (int i=0;i<n;++i)
-            for (int j=0;j<n;++j)
-                if (A[i][j].item().toInt()!=0)
-                    mdata[i].emplace_back(j);
+        auto n = A.size(0);
+        auto exists_torch = torch::where(A!=0);
+        auto fros = exists_torch[0], tos = exists_torch[1];
+        auto fros_size = fros.size(0);
+        for (int i=0;i<fros_size;++i) {
+            mdata[fros[i].item().toInt()].emplace_back(tos[i].item().toInt());
+        }
 
         // Dfs
         std::vector<bool> visited(n, false);
@@ -226,7 +220,7 @@ namespace utils {
         auto ordered = (G!=0).toType(torch::kLong) * -1;
         int i = 1;
         while (torch::any(ordered==-1).item().toBool()) {
-            auto ul = torch::hstack(torch::where(ordered==-1)).contiguous().toType(torch::kInt);
+            auto ul = torch::hstack(torch::where(ordered==-1)).toType(torch::kInt).contiguous();
             std::set<int> with_unlablled{ul.data_ptr<int>(), ul.data_ptr<int>()+ul.numel()};
             int y = 0;
             for (auto p=order.rbegin(); p!=order.rend(); ++p) {
@@ -235,8 +229,8 @@ namespace utils {
                     break;
                 }
             }
-            auto ul_y = torch::where(ordered.index({"...", y})==-1)[0].contiguous().toType(torch::kInt);
-            std::set<int> unlabelled_parents_y{ul_y.data_ptr<int>(), ul_y.data_ptr<int>()+ul.numel()};
+            auto ul_y = torch::where(ordered.index({"...", y})==-1)[0].toType(torch::kInt).contiguous();
+            std::set<int> unlabelled_parents_y{ul_y.data_ptr<int>(), ul_y.data_ptr<int>()+ul_y.numel()};
             int x = 0;
             for (auto p: order) {
                 if (unlabelled_parents_y.contains(p)) {
@@ -261,14 +255,15 @@ namespace utils {
             unknown_edges.index_put_({unknown_edges==0}, -1e10);
             auto max_pos = torch::argmax(unknown_edges).item().toInt();
             int x = max_pos / (int)unknown_edges.size(0), y = max_pos % (int)unknown_edges.size(0);
-            auto Ws = torch::where(labelled.index({"...", x})==COM)[0];
+            auto Ws_torch = torch::where(labelled.index({"...", x})==COM)[0].toType(torch::kInt).contiguous();
+            std::vector<int> Ws{Ws_torch.data_ptr<int>(), Ws_torch.data_ptr<int>()+Ws_torch.numel()};
             auto end = false;
 
-            int Ws_len = (int)Ws.size(0);
-            for (int w=0;w<Ws_len;++w) {
+            for (auto w: Ws) {
                 if (labelled[w][y].item().toInt() == 0) {
                     auto pa_y = pa(y, labelled);
                     auto pa_y_torch = torch::tensor(std::vector<int>{pa_y.begin(), pa_y.end()});
+                    labelled.index_put_({pa_y_torch, y}, COM);
                     end = true;
                     break;
                 }
