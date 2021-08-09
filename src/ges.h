@@ -95,7 +95,7 @@ auto score_valid_insert_operators(int x,
             for (const auto& path : utils::semi_directed_paths(y, x, A)) {
                 int cnt = 0;
                 for (auto node : path) {
-                    if (na_yxT.contains(node)) ++cnt;
+                    if (na_yxT.find(node) != na_yxT.end()) ++cnt;
                 }
                 if (cnt == 0) {
                     cond_2 = false;
@@ -117,7 +117,7 @@ auto score_valid_insert_operators(int x,
             auto old_score = cache.local_score(y, aux);
             aux.insert(x);
             auto new_score = cache.local_score(y, aux);
-            if (isinf(old_score) or isinf(new_score)) continue;
+            if (std::isinf(old_score) or std::isinf(new_score)) continue;
             if (debug) std::cout << new_score - old_score << std::endl;
 
             valid_count++;
@@ -130,7 +130,8 @@ auto score_valid_insert_operators(int x,
         }
     }
 
-    return std::make_tuple(best_score, best_A, valid_count, best_x, best_y, best_T);
+    return std::make_tuple(best_score, best_A, valid_count, best_x, best_y,
+                           best_T);
 }
 
 auto score_valid_delete_operators(int x,
@@ -194,7 +195,8 @@ auto score_valid_delete_operators(int x,
         }
     }
 
-    return std::make_tuple(best_score, best_A, valid_count, best_x, best_y, best_T);
+    return std::make_tuple(best_score, best_A, valid_count, best_x, best_y,
+                           best_T);
 }
 
 auto forward_step(const torch::Tensor& A,
@@ -219,8 +221,9 @@ auto forward_step(const torch::Tensor& A,
                 std::cout << "Testing operator " << i << " to " << j
                           << std::endl;
             // Get score
-            auto&& [score, new_A, valid_cnt, new_x, new_y, new_T] = score_valid_insert_operators(
-                i, j, A, cache, std::max(0, debug - 1));
+            auto&& [score, new_A, valid_cnt, new_x, new_y, new_T] =
+                score_valid_insert_operators(i, j, A, cache,
+                                             std::max(0, debug - 1));
             op_cnt += valid_cnt;
             if (score > best_score) {
                 best_score = score;
@@ -236,8 +239,9 @@ auto forward_step(const torch::Tensor& A,
         return std::make_tuple(0.0, A);
     } else {
         if (debug) {
-            std::cout << "Best operator: insert(" << best_x << ", " << best_y << ", [";
-            for (auto p: best_T) {
+            std::cout << "Best operator: insert(" << best_x << ", " << best_y
+                      << ", [";
+            for (auto p : best_T) {
                 std::cout << p << ",";
             }
             std::cout << "]) -> " << best_score << std::endl;
@@ -276,8 +280,9 @@ auto backward_step(const torch::Tensor& A,
                       << std::endl;
         }
         // Get score
-        auto&& [score, new_A, valid_cnt, new_x, new_y, new_T] = score_valid_delete_operators(
-            fro[i], to[i], A, cache, std::max(debug - 1, 0));
+        auto&& [score, new_A, valid_cnt, new_x, new_y, new_T] =
+            score_valid_delete_operators(fro[i], to[i], A, cache,
+                                         std::max(debug - 1, 0));
         op_cnt += valid_cnt;
         if (score > best_score) {
             best_A = new_A;
@@ -294,8 +299,9 @@ auto backward_step(const torch::Tensor& A,
         return std::make_tuple(0.0, A);
     } else {
         if (debug) {
-            std::cout << "Best operator: delete(" << best_x << ", " << best_y << ", [";
-            for (auto p: best_T) {
+            std::cout << "Best operator: delete(" << best_x << ", " << best_y
+                      << ", [";
+            for (auto p : best_T) {
                 std::cout << p << ",";
             }
             std::cout << "]) -> " << best_score << std::endl;
