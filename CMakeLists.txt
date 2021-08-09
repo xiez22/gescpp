@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.17)
+cmake_minimum_required(VERSION 3.12)
 project(gescpp)
 
 cmake_minimum_required(VERSION 3.0 FATAL_ERROR)

@@ -90,7 +90,7 @@ np::ndarray run_ges(const np::ndarray& array) {
     auto A0 = torch::zeros({n, n}).toType(torch::kLong);
     auto score_class = GaussObsL0Pen(tensor);
     auto&& [result, score] =
-        ges::fit(A0, score_class, {"forward", "backward"}, false, 1);
+        ges::fit(A0, score_class, {"forward", "backward"}, false, 0);
 
     // Convert torch::Tensor to np::ndarray
     auto&& result_np = torch_to_np_int(result);
