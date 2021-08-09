@@ -3,9 +3,7 @@ project(gescpp)
 
 cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
 
-# set(TORCH_CMAKE_PATH /Users/xz/miniforge3/envs/arm38/lib/python3.8/site-packages/torch/share/cmake)
-# set(PYTHON_VERSION 38)
-# set(PYTHON_INCLUDE_DIR /Users/xz/miniforge3/envs/arm38/include/python3.8)
+set(TORCH_CMAKE_PATH /Users/xz/miniforge3/envs/arm38/lib/python3.8/site-packages/torch/share/cmake)
 
 set(Boost_USE_STATIC_LIBS ON)
 set(CMAKE_PREFIX_PATH ${TORCH_CMAKE_PATH})
@@ -15,8 +13,6 @@ include_directories(${PYTHON_INCLUDE_DIR})
 include_directories(${Boost_INCLUDE_DIRS})
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS} -O3")
 
-add_library(gescpp SHARED src/ges.cpp)
-set_target_properties(gescpp PROPERTIES PREFIX "" SUFFIX ".so")
+add_executable(gescpp src/main.cpp)
 target_link_libraries(gescpp "${TORCH_LIBRARIES}" ${Boost_LIBRARIES})
 set_property(TARGET gescpp PROPERTY CXX_STANDARD 20)
-set(CMAKE_SHARED_LINKER_FLAGS "-undefined dynamic_lookup")
